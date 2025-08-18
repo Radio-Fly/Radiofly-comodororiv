@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Fly 103.5 Mhz</title>
+    <!-- Incluye Tailwind CSS desde CDN para un diseño profesional -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incluye hls.js para reproducir streams de video .m3u8 -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- Incluye un font de Google para una tipografía limpia y legible -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos base para el cuerpo, ahora sin color de fondo para que el video se vea */
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #e5e5e5; /* Gris claro */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            position: relative;
+            overflow: hidden; /* Oculta el overflow del cuerpo para evitar barras de desplazamiento */
+        }
+        
+        /* Contenedor principal para el video que define la relación de aspecto 9:16 */
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -100;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: black; /* Agrega un fondo negro para las bandas */
+        }
+
+        /* Estilos para el video de fondo dentro del contenedor */
+        #video-bg {
+            /* Asegura que el video cubra completamente el contenedor */
+            object-fit: cover; 
+            /* Se establece una relación de aspecto de 9:16 para el video mismo */
+            min-width: 100%;
+            min-height: 100%;
+            /* Añadido para la transición de opacidad, ahora de 2.5s */
+            transition: opacity 2.5s ease-in-out;
+        }
+
+        /* Contenedor principal de la aplicación, ahora con fondo completamente transparente */
+        .radio-container {
+            width: 100%;
+            max-width: 400px; /* Tamaño máximo para centrar en pantallas grandes */
+            background-color: rgba(26, 26, 26, 0); /* Fondo completamente transparente */
+            border-radius: 1.5rem; /* Bordes muy redondeados */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease-in-out;
+            z-index: 10;
+            position: relative;
+        }
+
+        /* Estilos para los botones de control, ahora transparentes */
+        .control-button {
+            background-color: rgba(26, 26, 26, 0.01); /* Opacidad casi nula */
+            color: #d6d3d1;
+            padding: 0.75rem;
+            border-radius: 9999px; /* Botones circulares */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+        .control-button:hover {
+            background-color: rgba(68, 64, 60, 0.05); /* Ligeramente más visible al pasar el mouse */
+            transform: scale(1.05);
+        }
+        .control-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Estilos para el botón principal de play/pause */
+        #play-pause-btn {
+            background-color: rgba(239, 68, 68, 0.3); /* Rojo vibrante con opacidad muy reducida */
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 6px 15px rgba(239, 68, 68, 0.4);
+        }
+        #play-pause-btn:hover {
+            background-color: rgba(220, 38, 38, 0.5);
+            transform: scale(1.1);
+        }
+
+        /* Estilos para el slider de volumen */
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: rgba(68, 64, 60, 0.05); /* Fondo del slider más transparente */
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            border-radius: 5px;
+        }
+        .volume-slider:hover {
+            opacity: 1;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ef4444;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ef4444;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Estilo para el icono del altavoz */
+        .volume-icon {
+            color: #a3a3a3;
+        }
+
+        /* Indicador de estado de carga */
+        #status-message {
+            margin-top: 1rem;
+            color: #d6d3d1;
+        }
+        
+        /* Estilo para el contenedor de la temperatura */
+        .weather-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 0.5rem;
+            color: #d6d3d1;
+            font-size: 0.875rem;
+        }
+        .weather-container svg {
+            margin-right: 0.25rem;
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+    </style>
+</head>
+<body>
+    <!-- Contenedor del video con la relación de aspecto 9:16 -->
+    <div class="video-container">
+        <!-- Video de fondo en streaming -->
+        <video id="video-bg" autoplay muted loop></video>
+    </div>
+
+    <div class="radio-container">
+        <!-- Título de la aplicación -->
+        <h1 class="text-3xl font-bold text-white mb-6">Radio Fly 103.5 Mhz</h1>
+
+        <!-- Contenedor de la imagen y texto -->
+        <div class="mb-8">
+            <div class="w-48 h-48 mx-auto overflow-hidden rounded-full border-4 border-gray-600 shadow-lg">
+                <img src="https://i.postimg.cc/fTNz6rNY/stream-tools-zenomedia.png" alt="Radio Fly Logo" class="w-full h-full object-cover">
+            </div>
+            <p class="mt-4 text-xl font-medium text-white">Rock & Pop</p>
+            <p class="text-sm text-gray-400">En vivo</p>
+            <!-- Contador de oyentes -->
+            <p class="text-sm text-gray-400 mt-2">Oyentes: <span id="listener-count" class="font-bold text-white">0</span></p>
+            <!-- Contenedor de la temperatura -->
+            <div class="weather-container">
+                <span id="temperature-display">Comodoro Rivadavia</span>
+            </div>
+            <!-- Hora actual -->
+            <p id="current-time" class="text-sm text-gray-400 mt-2">--:--:--</p>
+        </div>
+
+        <!-- Controles de reproducción -->
+        <div class="flex items-center justify-center space-x-4 mb-6">
+            <!-- Botón de parada -->
+            <button id="stop-btn" class="control-button w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 6h12v12H6z"></path>
+                </svg>
+            </button>
+            <!-- Botón principal de play/pause -->
+            <button id="play-pause-btn" class="control-button w-20 h-20 flex items-center justify-center">
+                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"></path>
+                </svg>
+                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 hidden" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Control de volumen -->
+        <div class="flex items-center space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 volume-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9z"></path>
+            </svg>
+            <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.01" value="0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 volume-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.98 7-4.83 7-8.77s-2.99-7.79-7-8.77zM16.5 12c0 2.21-1.5 4.09-3.5 4.54v-9.08c2 .45 3.5 2.33 3.5 4.54z"></path>
+            </svg>
+        </div>
+        
+        <!-- Mensaje de estado -->
+        <p id="status-message" class="text-sm text-gray-400 mt-4">Listo para reproducir...</p>
+        
+        <!-- Elemento de audio oculto -->
+        <audio id="audio-player" src="https://stream.zeno.fm/67ep5htcxf9uv"></audio>
+    </div>
+
+    <script>
+        // Get references to DOM elements
+        const audioPlayer = document.getElementById('audio-player');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const statusMessage = document.getElementById('status-message');
+        const listenerCountSpan = document.getElementById('listener-count');
+        const videoBg = document.getElementById('video-bg');
+        const temperatureDisplay = document.getElementById('temperature-display');
+        const currentTimeElement = document.getElementById('current-time');
+        
+        // Array with all the video URLs to alternate between
+        const videoUrls = [
+            'https://s118.ipcamlive.com/streams/76esonogflrwk4v63/stream.m3u8',
+            'https://s118.ipcamlive.com/streams/76rwu3nxsyzhcoa0k/stream.m3u8'
+        ];
+        let currentVideoIndex = 0;
+
+        // Function to load the video stream
+        function loadVideo(url) {
+            if (Hls.isSupported()) {
+                if (videoBg.hls) {
+                    videoBg.hls.destroy();
+                }
+                const hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoBg);
+                videoBg.hls = hls; // Save the instance so it can be destroyed later
+            } else if (videoBg.canPlayType('application/vnd.apple.mpegurl')) {
+                videoBg.src = url;
+            }
+        }
+
+        // Function to switch to the next video stream with a transition
+        function switchVideo() {
+            // First, fade out the current video
+            videoBg.style.opacity = 0;
+
+            // Use a setTimeout to allow the fade-out transition to complete
+            setTimeout(() => {
+                // Increment the index and wrap around to the start of the array if needed
+                currentVideoIndex = (currentVideoIndex + 1) % videoUrls.length;
+                const nextUrl = videoUrls[currentVideoIndex];
+                loadVideo(nextUrl);
+                console.log(`Cambiando de video. Nuevo video: ${nextUrl}`);
+                
+                // Immediately fade the new video in
+                videoBg.style.opacity = 1;
+            }, 2500); // Wait for 2.5 seconds (matches the CSS transition duration)
+        }
+
+        // Listener count state
+        let currentCount = 30;
+        let isIncreasing = true; // Start by increasing
+        let intervalId;
+
+        // Set initial volume from the slider
+        audioPlayer.volume = volumeSlider.value;
+
+        // Function to update the listener count
+        function updateListenerCount() {
+            let increment;
+            if (isIncreasing) {
+                increment = Math.floor(Math.random() * (2 - 1 + 1)) + 1; // Increment by 1 or 2
+            } else {
+                increment = -(Math.floor(Math.random() * (2 - 1 + 1)) + 1); // Decrement by 1 or 2
+            }
+
+            currentCount += increment;
+
+            // Limit the count and change direction
+            if (currentCount >= 165) {
+                currentCount = 165;
+                // After 300 seconds, start decreasing
+                setTimeout(() => {
+                    isIncreasing = false;
+                }, 300000); 
+            } else if (currentCount <= 30) {
+                currentCount = 30;
+                isIncreasing = true; // Start increasing again
+            }
+            
+            listenerCountSpan.textContent = currentCount;
+
+            // Define the next time interval
+            const nextInterval = (Math.random() * (190 - 60) + 60) * 1000;
+            intervalId = setTimeout(updateListenerCount, nextInterval);
+        }
+
+        // Function to update the current time
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            currentTimeElement.textContent = timeString;
+        }
+
+        // Call the functions to start the counter
+        updateListenerCount();
+        
+        // Listener for the Play/Pause button
+        playPauseBtn.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                // Update status message and icons
+                statusMessage.textContent = 'Cargando...';
+            } else {
+                audioPlayer.pause();
+            }
+        });
+
+        // Listener for the Stop button
+        stopBtn.addEventListener('click', () => {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0; // Reset playback to the beginning
+        });
+
+        // Listener for the volume slider
+        volumeSlider.addEventListener('input', (event) => {
+            audioPlayer.volume = event.target.value;
+        });
+
+        // Audio player events to update the UI
+        audioPlayer.addEventListener('playing', () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            statusMessage.textContent = 'Reproduciendo...';
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            statusMessage.textContent = 'Pausado';
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            statusMessage.textContent = 'Detenido';
+        });
+
+        audioPlayer.addEventListener('waiting', () => {
+            statusMessage.textContent = 'Cargando...';
+        });
+        
+        // Handle loading errors
+        audioPlayer.addEventListener('error', () => {
+             statusMessage.textContent = 'Error al cargar la radio. Por favor, inténtelo de nuevo más tarde.';
+        });
+
+        // Load the video at the start and set up the video switching and time display
+        window.addEventListener('load', () => {
+            loadVideo(videoUrls[currentVideoIndex]);
+            setInterval(switchVideo, 180000); // Switch every 3 minutes
+            setInterval(updateTime, 1000); // Update time every second
+            updateTime(); // Initial call to display time immediately
+        });
+
+    </script>
+
+</body>
+</html>
